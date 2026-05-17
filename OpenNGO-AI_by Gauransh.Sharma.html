@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenNGO AI — by Gauransh Sharma</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0a0e0a;--surface:#111611;--surface2:#161d16;--border:#1e2a1e;
+    --green:#4ade80;--green-dim:#22543d;--green-muted:#1a3a26;
+    --amber:#fbbf24;--amber-dim:#92400e;--red:#f87171;--red-dim:#7f1d1d;
+    --blue:#60a5fa;--text:#e2f0e2;--text-muted:#6b8a6b;--text-dim:#3d5c3d;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:'Instrument Sans',sans-serif;font-size:14px;min-height:100vh;overflow-x:hidden;}
+  body::before{content:'';position:fixed;inset:0;background-image:repeating-linear-gradient(0deg,transparent,transparent 40px,rgba(74,222,128,.015) 40px,rgba(74,222,128,.015) 41px),repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(74,222,128,.015) 40px,rgba(74,222,128,.015) 41px);pointer-events:none;z-index:0;}
+
+  .screen{display:none;min-height:100vh;flex-direction:column;position:relative;z-index:1;}
+  .screen.active{display:flex;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
+  @keyframes ticker{0%{transform:translateX(60%)}100%{transform:translateX(-100%)}}
+
+  /* SHARED */
+  header{border-bottom:1px solid var(--border);padding:0 32px;display:flex;align-items:center;justify-content:space-between;height:64px;background:rgba(10,14,10,.95);position:sticky;top:0;z-index:100;backdrop-filter:blur(12px);flex-shrink:0;}
+  .logo{font-family:'DM Serif Display',serif;font-size:20px;color:var(--green);letter-spacing:-.5px;}
+  .logo span{color:var(--text-muted);font-style:italic;}
+  .live-badge{display:flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;font-size:11px;color:var(--green);letter-spacing:.08em;}
+  .live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;}
+  .byline{font-family:'DM Mono',monospace;font-size:10px;color:var(--text-dim);margin-top:3px;letter-spacing:.05em;}
+  .header-time{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;}
+  .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+  .card-title{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);}
+  .card-badge{font-family:'DM Mono',monospace;font-size:10px;padding:2px 8px;border-radius:3px;}
+  .badge-green{background:var(--green-muted);color:var(--green);}
+  .badge-amber{background:var(--amber-dim);color:var(--amber);}
+  .badge-red{background:var(--red-dim);color:var(--red);}
+  .badge-blue{background:#1e3a5f;color:var(--blue);}
+  .stat-big{font-family:'DM Serif Display',serif;font-size:36px;color:var(--text);line-height:1;margin-bottom:4px;}
+  .stat-label{font-size:12px;color:var(--text-muted);}
+  .stat-change{font-family:'DM Mono',monospace;font-size:11px;margin-top:4px;}
+  .up{color:var(--green);}.down{color:var(--red);}
+  .mono{font-family:'DM Mono',monospace;}
+  .predict-chip{display:inline-flex;align-items:center;gap:4px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.25);border-radius:3px;padding:2px 7px;font-family:'DM Mono',monospace;font-size:9px;color:var(--amber);letter-spacing:.06em;}
+  .mini-table{width:100%;border-collapse:collapse;}
+  .mini-table th{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);}
+  .mini-table td{padding:8px;font-size:12px;border-bottom:1px solid rgba(30,42,30,.5);}
+  .mini-table tr:last-child td{border-bottom:none;}
+  .alloc-item{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);}
+  .alloc-item:last-child{border-bottom:none;}
+  .alloc-label{flex:0 0 160px;font-size:12px;}
+  .alloc-bar-wrap{flex:1;background:var(--surface2);border-radius:2px;height:6px;overflow:hidden;}
+  .alloc-bar{height:100%;border-radius:2px;}
+  .alloc-amount{flex:0 0 90px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);}
+  .alloc-pct{flex:0 0 36px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;}
+  .report-block{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:14px;margin-bottom:10px;}
+  .report-block:last-child{margin-bottom:0;}
+  .report-title{font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
+  .report-text{font-size:12px;line-height:1.7;color:var(--text);}
+  footer{border-top:1px solid var(--border);padding:20px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;position:relative;z-index:1;}
+  .footer-left{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);line-height:1.8;}
+  .footer-links{display:flex;gap:20px;}
+  .footer-links a{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);text-decoration:none;cursor:pointer;}
+  .footer-links a:hover{color:var(--green);}
+  .ticker-wrap{overflow:hidden;background:var(--surface2);border-bottom:1px solid var(--border);padding:9px 32px;display:flex;align-items:center;gap:16px;}
+  .ticker-label{font-family:'DM Mono',monospace;font-size:10px;color:var(--green);white-space:nowrap;flex-shrink:0;letter-spacing:.08em;}
+  .ticker-scroll{flex:1;overflow:hidden;white-space:nowrap;}
+  .ticker-inner{display:inline-block;animation:ticker 24s linear infinite;font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);}
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+  /* ── PUBLIC SCREEN ── */
+  .emp-btn{background:var(--green-muted);border:1px solid var(--green-dim);color:var(--green);padding:8px 16px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;font-family:'Instrument Sans',sans-serif;transition:background .2s;white-space:nowrap;}
+  .emp-btn:hover{background:var(--green-dim);}
+  .hero{padding:56px 32px 40px;text-align:center;border-bottom:1px solid var(--border);background:linear-gradient(180deg,rgba(74,222,128,.04) 0%,transparent 100%);}
+  .hero-badge{display:inline-flex;align-items:center;gap:6px;background:var(--green-muted);border:1px solid var(--green-dim);border-radius:20px;padding:5px 14px;font-family:'DM Mono',monospace;font-size:11px;color:var(--green);letter-spacing:.06em;margin-bottom:20px;}
+  .hero-title{font-family:'DM Serif Display',serif;font-size:42px;color:var(--text);line-height:1.1;margin-bottom:12px;letter-spacing:-.5px;}
+  .hero-title em{color:var(--green);font-style:normal;}
+  .hero-sub{font-size:15px;color:var(--text-muted);max-width:520px;margin:0 auto 32px;line-height:1.6;}
+  .hero-stats{display:flex;justify-content:center;gap:48px;flex-wrap:wrap;}
+  .hero-stat-val{font-family:'DM Serif Display',serif;font-size:32px;color:var(--green);}
+  .hero-stat-label{font-size:12px;color:var(--text-muted);margin-top:2px;}
+  .pub-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;padding:28px 32px;}
+  .pub-full{grid-column:1/-1;}.pub-two{grid-column:span 2;}
+  .impact-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+  .impact-card{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:16px;text-align:center;}
+  .impact-icon{font-size:24px;margin-bottom:8px;}
+  .impact-val{font-family:'DM Serif Display',serif;font-size:28px;color:var(--text);line-height:1;margin-bottom:4px;}
+  .impact-label{font-size:11px;color:var(--text-muted);}
+  .audit-row{display:grid;grid-template-columns:140px 90px 1fr 80px;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);align-items:center;font-size:12px;}
+  .audit-row:last-child{border-bottom:none;}
+  .audit-hdr{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);}
+  .audit-hash{font-family:'DM Mono',monospace;font-size:10px;color:var(--text-dim);}
+  .event-item{display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--border);align-items:flex-start;}
+  .event-item:last-child{border-bottom:none;}
+  .event-date{flex:0 0 52px;text-align:center;background:var(--green-muted);border:1px solid var(--green-dim);border-radius:6px;padding:6px 4px;}
+  .event-day{font-family:'DM Serif Display',serif;font-size:20px;color:var(--green);line-height:1;}
+  .event-mon{font-family:'DM Mono',monospace;font-size:9px;color:var(--text-muted);text-transform:uppercase;}
+  .event-name{font-size:13px;font-weight:500;margin-bottom:3px;}
+  .event-detail{font-size:11px;color:var(--text-muted);}
+
+  /* ── LOGIN SCREEN ── */
+  .login-center{flex:1;display:flex;align-items:center;justify-content:center;padding:40px 16px;}
+  .login-box{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:40px 36px;animation:fadeIn .4s ease;}
+  .login-icon{width:52px;height:52px;background:var(--green-muted);border:1px solid var(--green-dim);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:20px;}
+  .login-title{font-family:'DM Serif Display',serif;font-size:26px;color:var(--text);margin-bottom:4px;}
+  .login-sub{font-size:13px;color:var(--text-muted);margin-bottom:28px;}
+  .demo-hint{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:20px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);line-height:1.8;}
+  .demo-hint strong{color:var(--amber);}
+  .field{margin-bottom:18px;}
+  .field label{display:block;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:7px;}
+  .field input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:11px 14px;color:var(--text);font-size:14px;font-family:'Instrument Sans',sans-serif;outline:none;transition:border-color .2s;}
+  .field input:focus{border-color:var(--green-dim);}
+  .field input::placeholder{color:var(--text-dim);}
+  .role-label{display:block;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;}
+  .role-options{display:flex;gap:10px;margin-bottom:24px;}
+  .role-btn{flex:1;padding:9px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);font-size:12px;font-family:'Instrument Sans',sans-serif;cursor:pointer;text-align:center;transition:all .2s;}
+  .role-btn:hover{border-color:var(--green-dim);color:var(--text);}
+  .role-btn.selected{border-color:var(--green);background:var(--green-muted);color:var(--green);}
+  .login-btn{width:100%;background:var(--green);color:var(--bg);border:none;border-radius:7px;padding:13px;font-size:14px;font-weight:600;font-family:'Instrument Sans',sans-serif;cursor:pointer;transition:opacity .2s,transform .1s;letter-spacing:.02em;}
+  .login-btn:hover{opacity:.9;}.login-btn:active{transform:scale(.99);}
+  .error-msg{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.25);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--red);margin-bottom:16px;display:none;}
+  .divider{border:none;border-top:1px solid var(--border);margin:24px 0 20px;}
+  .public-link{text-align:center;font-size:12px;color:var(--text-muted);}
+  .public-link a{color:var(--green);text-decoration:none;font-weight:500;cursor:pointer;}
+
+  /* ── DASHBOARD SCREEN ── */
+  .nav-tabs{display:flex;padding:0 32px;border-bottom:1px solid var(--border);background:var(--surface);}
+  .tab{padding:14px 20px;font-size:12px;font-weight:500;letter-spacing:.04em;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;text-transform:uppercase;white-space:nowrap;}
+  .tab:hover{color:var(--text);}
+  .tab.active{color:var(--green);border-bottom-color:var(--green);}
+  .adot{display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:6px;vertical-align:middle;}
+  .dash-body{flex:1;overflow-y:auto;}
+  .main{display:none;padding:28px 32px;gap:20px;animation:fadeIn .3s ease;}
+  .main.active{display:grid;}
+  #tab-overview{grid-template-columns:repeat(4,1fr);}
+  .overview-stats{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+  .agents-panel{grid-column:1/3;}.activity-panel{grid-column:3/-1;}.alerts-panel{grid-column:1/-1;}
+  .dticker{grid-column:1/-1;overflow:hidden;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:8px 14px;display:flex;align-items:center;gap:12px;}
+  .agent-card{border:1px solid var(--border);border-radius:6px;padding:16px;margin-bottom:12px;position:relative;overflow:hidden;}
+  .agent-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;}
+  .agent-card.finance::before{background:var(--green);}
+  .agent-card.procurement::before{background:var(--blue);}
+  .agent-card.transparency::before{background:var(--amber);}
+  .agent-name{font-weight:600;font-size:13px;margin-bottom:4px;}
+  .agent-status-line{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);margin-bottom:10px;}
+  .agent-metrics{display:flex;gap:20px;}
+  .agent-metric-val{font-family:'DM Serif Display',serif;font-size:22px;color:var(--text);}
+  .agent-metric-label{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;}
+  .activity-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);align-items:flex-start;}
+  .activity-item:last-child{border-bottom:none;}
+  .activity-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;margin-top:1px;}
+  .activity-text{font-size:12px;line-height:1.5;}
+  .activity-time{font-family:'DM Mono',monospace;font-size:10px;color:var(--text-muted);margin-top:2px;}
+  .alert-bar{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:5px;margin-bottom:8px;font-size:12px;}
+  .alert-bar:last-child{margin-bottom:0;}
+  .alert-warn{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);}
+  .alert-info{background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.2);}
+  .alert-action{font-family:'DM Mono',monospace;font-size:10px;padding:3px 8px;border-radius:3px;cursor:pointer;border:none;}
+  #tab-finance{grid-template-columns:1fr 1fr 1fr;}
+  .fin-full{grid-column:1/-1;}
+  .ring-container{position:relative;display:flex;align-items:center;justify-content:center;height:130px;}
+  .ring-container svg{transform:rotate(-90deg);}
+  .ring-center{position:absolute;text-align:center;}
+  .ring-val{font-family:'DM Serif Display',serif;font-size:28px;}
+  .ring-sub{font-size:10px;color:var(--text-muted);}
+  #tab-procurement{grid-template-columns:1fr 1fr;}
+  .proc-full{grid-column:1/-1;}
+  .po-item{padding:12px 0;border-bottom:1px solid var(--border);}
+  .po-item:last-child{border-bottom:none;}
+  .po-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+  .po-id{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);}
+  .po-vendor{font-size:13px;font-weight:500;}
+  .po-detail{font-size:11px;color:var(--text-muted);margin-top:4px;}
+  .delivery-track{display:flex;margin-top:8px;}
+  .track-step{flex:1;text-align:center;position:relative;}
+  .track-step::before{content:'';position:absolute;top:10px;left:50%;right:-50%;height:2px;background:var(--border);}
+  .track-step:last-child::before{display:none;}
+  .track-step.done::before{background:var(--green);}
+  .track-dot{width:20px;height:20px;border-radius:50%;border:2px solid var(--border);background:var(--bg);margin:0 auto 4px;position:relative;z-index:1;display:flex;align-items:center;justify-content:center;font-size:9px;}
+  .track-step.done .track-dot{border-color:var(--green);background:var(--green-muted);color:var(--green);}
+  .track-step.active .track-dot{border-color:var(--amber);background:var(--amber-dim);color:var(--amber);animation:pulse 1.5s infinite;}
+  .track-label{font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;}
+  #tab-transparency{grid-template-columns:1fr 1fr 1fr;}
+  .trans-full{grid-column:1/-1;}.trans-two{grid-column:span 2;}
+  .arow{display:grid;grid-template-columns:140px 80px 1fr 80px;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);align-items:center;font-size:12px;}
+  .arow:last-child{border-bottom:none;}
+  .arow-hdr{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);}
+  .ahash{font-family:'DM Mono',monospace;font-size:10px;color:var(--text-dim);}
+  .ai-chat-btn{position:fixed;bottom:28px;right:28px;background:var(--green);color:var(--bg);border:none;border-radius:50%;width:52px;height:52px;font-size:22px;cursor:pointer;z-index:200;box-shadow:0 4px 24px rgba(74,222,128,.3);transition:transform .2s;}
+  .ai-chat-btn:hover{transform:scale(1.05);}
+  .ai-panel{position:fixed;bottom:92px;right:28px;width:340px;background:var(--surface);border:1px solid var(--border);border-radius:12px;z-index:200;display:none;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.5);overflow:hidden;max-height:480px;}
+  .ai-panel.open{display:flex;}
+  .ai-panel-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface2);}
+  .ai-panel-title{font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;}
+  .ai-messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;max-height:300px;}
+  .msg{max-width:85%;padding:8px 12px;border-radius:8px;font-size:12px;line-height:1.5;}
+  .msg.user{align-self:flex-end;background:var(--green-dim);color:var(--green);border-bottom-right-radius:2px;}
+  .msg.ai{align-self:flex-start;background:var(--surface2);border:1px solid var(--border);border-bottom-left-radius:2px;}
+  .msg.typing{color:var(--text-muted);font-style:italic;}
+  .ai-input-row{padding:12px;border-top:1px solid var(--border);display:flex;gap:8px;}
+  .ai-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:'Instrument Sans',sans-serif;outline:none;}
+  .ai-input:focus{border-color:var(--green-dim);}
+  .ai-send{background:var(--green);color:var(--bg);border:none;border-radius:6px;padding:8px 12px;cursor:pointer;font-size:14px;}
+
+  @media(max-width:900px){
+    header{padding:0 16px;}
+    .hero{padding:36px 16px 28px;}.hero-title{font-size:28px;}.hero-stats{gap:28px;}
+    .pub-grid,.main{grid-template-columns:1fr!important;padding:16px;}
+    .pub-full,.pub-two,.fin-full,.proc-full,.trans-full,.trans-two,.agents-panel,.activity-panel,.alerts-panel,.dticker{grid-column:1/-1!important;}
+    .overview-stats{grid-template-columns:1fr 1fr;}
+    .impact-grid{grid-template-columns:1fr 1fr;}
+    .nav-tabs{padding:0 16px;overflow-x:auto;}
+    .ai-panel{width:calc(100vw - 56px);right:16px;}
+    footer{padding:16px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════ SCREEN: PUBLIC ════════════ -->
+<div class="screen active" id="screen-public">
+  <header>
+    <div class="logo">OpenNGO<span>AI</span></div>
+    <div style="display:flex;align-items:center;gap:20px;">
+      <div style="text-align:right;">
+        <div class="live-badge" style="justify-content:flex-end;"><div class="live-dot"></div> LIVE</div>
+        <div class="byline">project made by Gauransh Sharma</div>
+      </div>
+      <button class="emp-btn" onclick="go('login')">Employee Login →</button>
+    </div>
+  </header>
+
+  <div class="ticker-wrap">
+    <div class="ticker-label">▶ LIVE DONATIONS</div>
+    <div class="ticker-scroll"><div class="ticker-inner">₹5,000 — Rahul M. (Mumbai) · 2 min ago &nbsp;·&nbsp; ₹12,500 — Priya K. (Delhi) · 8 min ago &nbsp;·&nbsp; ₹2,000 — Anonymous · 15 min ago &nbsp;·&nbsp; ₹50,000 — Tata Trusts CSR · 1 hr ago &nbsp;·&nbsp; ₹3,500 — Arjun S. (Pune) · 2 hr ago &nbsp;·&nbsp; ₹8,000 — Meera V. (Hyderabad) · 3 hr ago</div></div>
+  </div>
+
+  <div class="hero">
+    <div class="hero-badge"><div class="live-dot"></div> RADICAL TRANSPARENCY</div>
+    <div class="hero-title">Every rupee, <em>accounted for.</em></div>
+    <div class="hero-sub">This is the public dashboard of our NGO. Every donation, every expense, and every purchase order is logged here in real-time — openly, for anyone to see.</div>
+    <div class="hero-stats">
+      <div><div class="hero-stat-val">₹2.84L</div><div class="hero-stat-label">Raised this month</div></div>
+      <div><div class="hero-stat-val">1,240</div><div class="hero-stat-label">People served this week</div></div>
+      <div><div class="hero-stat-val">847</div><div class="hero-stat-label">Audit entries today</div></div>
+      <div><div class="hero-stat-val">100%</div><div class="hero-stat-label">Funds accounted for</div></div>
+    </div>
+  </div>
+
+  <div class="pub-grid">
+    <div class="card pub-full">
+      <div class="card-header"><div class="card-title">Our Impact — May 2025</div><div class="card-badge badge-green">VERIFIED</div></div>
+      <div class="impact-grid">
+        <div class="impact-card"><div class="impact-icon">🍚</div><div class="impact-val">4,820</div><div class="impact-label">Meals served</div></div>
+        <div class="impact-card"><div class="impact-icon">🌱</div><div class="impact-val">380</div><div class="impact-label">Saplings planted</div></div>
+        <div class="impact-card"><div class="impact-icon">👨‍👩‍👧</div><div class="impact-val">1,240</div><div class="impact-label">People served this week</div></div>
+        <div class="impact-card"><div class="impact-icon">📅</div><div class="impact-val">12</div><div class="impact-label">Drives completed</div></div>
+      </div>
+    </div>
+
+    <div class="card pub-two">
+      <div class="card-header"><div class="card-title">Where Your Donations Go</div><div class="card-badge badge-green">AUTO-ALLOCATED BY AI</div></div>
+      <div class="alloc-item"><div class="alloc-label">🍚 Daily Food Distribution</div><div class="alloc-bar-wrap"><div class="alloc-bar" style="width:38%;background:var(--green);"></div></div><div class="alloc-amount">₹1,07,920</div><div class="alloc-pct" style="color:var(--green);">38%</div></div>
+      <div class="alloc-item"><div class="alloc-label">🌱 Plant Drives</div><div class="alloc-bar-wrap"><div class="alloc-bar" style="width:22%;background:#34d399;"></div></div><div class="alloc-amount">₹62,480</div><div class="alloc-pct" style="color:#34d399;">22%</div></div>
+      <div class="alloc-item"><div class="alloc-label">👥 Staff Salaries</div><div class="alloc-bar-wrap"><div class="alloc-bar" style="width:18%;background:var(--blue);"></div></div><div class="alloc-amount">₹51,120</div><div class="alloc-pct" style="color:var(--blue);">18%</div></div>
+      <div class="alloc-item"><div class="alloc-label">🏥 Emergency Reserve</div><div class="alloc-bar-wrap"><div class="alloc-bar" style="width:12%;background:var(--amber);"></div></div><div class="alloc-amount">₹34,080</div><div class="alloc-pct" style="color:var(--amber);">12%</div></div>
+      <div class="alloc-item"><div class="alloc-label">🔧 Operations</div><div class="alloc-bar-wrap"><div class="alloc-bar" style="width:7%;background:#a78bfa;"></div></div><div class="alloc-amount">₹19,880</div><div class="alloc-pct" style="color:#a78bfa;">7%</div></div>
+      <div class="alloc-item"><div class="alloc-label">📊 Admin & Tech</div><div class="alloc-bar-wrap"><div class="alloc-bar" style="width:3%;background:var(--text-muted);"></div></div><div class="alloc-amount">₹8,520</div><div class="alloc-pct" style="color:var(--text-muted);">3%</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Upcoming Events</div></div>
+      <div class="event-item"><div class="event-date"><div class="event-day">19</div><div class="event-mon">May</div></div><div><div class="event-name">🍚 Daily Food Distribution</div><div class="event-detail">7am–9am · ~220 beneficiaries</div></div></div>
+      <div class="event-item"><div class="event-date"><div class="event-day">21</div><div class="event-mon">May</div></div><div><div class="event-name">🌱 Wednesday Plant Drive</div><div class="event-detail">180 saplings · Community park</div></div></div>
+      <div class="event-item"><div class="event-date"><div class="event-day">25</div><div class="event-mon">May</div></div><div><div class="event-name">🌿 Sunday Plant Drive</div><div class="event-detail">300+ saplings · Large event</div></div></div>
+    </div>
+
+    <div class="card pub-full">
+      <div class="card-header"><div class="card-title">Public Audit Trail</div><div style="display:flex;gap:8px;"><div class="card-badge badge-green">OPEN PUBLIC</div><div class="card-badge badge-amber">TAMPER-PROOF</div></div></div>
+      <div class="audit-row audit-hdr"><div>Timestamp</div><div>Amount</div><div>Description</div><div>Ref#</div></div>
+      <div class="audit-row"><div class="mono" style="font-size:11px;color:var(--text-muted);">17/05 11:42</div><div class="mono" style="color:var(--green);">₹5,000</div><div>Donation — Auto-allocated: food ₹2,500, plants ₹1,500, reserve ₹1,000</div><div class="audit-hash">a3f8d</div></div>
+      <div class="audit-row"><div class="mono" style="font-size:11px;color:var(--text-muted);">17/05 11:30</div><div class="mono" style="color:var(--blue);">₹22,500</div><div>PO: 150 saplings from GreenNursery (auto-triggered, delivery Sat)</div><div class="audit-hash">b7a1c</div></div>
+      <div class="audit-row"><div class="mono" style="font-size:11px;color:var(--text-muted);">17/05 09:00</div><div class="mono" style="color:var(--amber);">₹42,000</div><div>Salary disbursement: 3 staff members paid for May 2025</div><div class="audit-hash">c4e7a</div></div>
+      <div class="audit-row"><div class="mono" style="font-size:11px;color:var(--text-muted);">17/05 08:30</div><div class="mono" style="color:var(--blue);">₹11,600</div><div>PO: 200kg rice from AgriMart India — ₹58/kg (saved ₹1,400 vs market)</div><div class="audit-hash">f1b8e</div></div>
+      <div class="audit-row"><div class="mono" style="font-size:11px;color:var(--text-muted);">16/05 18:00</div><div class="mono" style="color:var(--green);">₹50,000</div><div>Donation: Tata Trusts CSR — smart reserve + food distribution</div><div class="audit-hash">d2c3f</div></div>
+    </div>
+
+    <div class="card pub-two">
+      <div class="card-header"><div class="card-title">Latest Weekly Report — 12–18 May 2025</div><div class="card-badge badge-green">AI GENERATED</div></div>
+      <div class="report-block"><div class="report-title">SUMMARY</div><div class="report-text">The foundation received <strong style="color:var(--green);">₹2,84,000</strong> — a 23% increase. 100% of funds auto-allocated within minutes. Two plant drives and daily food distribution served <strong style="color:var(--text);">1,240 beneficiaries</strong>. No stockouts recorded.</div></div>
+      <div class="report-block"><div class="report-title">EFFICIENCY</div><div class="report-text">Procurement savings: <strong style="color:var(--green);">₹6,200 (12%)</strong> below market rate. All 7 purchase orders on time. Zero budget overruns.</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">About This Platform</div></div>
+      <div style="font-size:12px;line-height:1.8;color:var(--text-muted);">Powered by <strong style="color:var(--text);">OpenNGO AI</strong> — a free open-source platform. Any NGO can clone, connect their database, and deploy for free.<br><br><strong style="color:var(--green);">Built with ❤️ by Gauransh Sharma</strong><br><span style="font-family:'DM Mono',monospace;font-size:10px;">MIT License · Free for all NGOs forever</span></div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-left">OpenNGO AI — Open Source Humanitarian Platform<br>project made by Gauransh Sharma · MIT License</div>
+    <div class="footer-links"><a onclick="go('login')">Employee Login</a><a href="https://github.com" target="_blank">GitHub</a></div>
+  </footer>
+</div>
+
+<!-- ════════════ SCREEN: LOGIN ════════════ -->
+<div class="screen" id="screen-login">
+  <header>
+    <div class="logo">OpenNGO<span>AI</span></div>
+    <div style="text-align:right;">
+      <div class="live-badge" style="justify-content:flex-end;"><div class="live-dot"></div> LIVE</div>
+      <div class="byline">project made by Gauransh Sharma</div>
+    </div>
+  </header>
+
+  <div class="login-center">
+    <div class="login-box">
+      <div class="login-icon">🔐</div>
+      <div class="login-title">Employee Login</div>
+      <div class="login-sub">Sign in to access the full NGO dashboard</div>
+      <div class="demo-hint"><strong>Demo credentials</strong><br>Director &nbsp;→ director@ngo.org / admin123<br>Manager &nbsp;→ manager@ngo.org / ops2025<br>Staff &nbsp;&nbsp;&nbsp;&nbsp;→ staff@ngo.org / staff2025</div>
+      <div class="error-msg" id="login-error">❌ Incorrect email or password. Please try again.</div>
+      <div class="field"><label>Email Address</label><input type="email" id="login-email" placeholder="you@ngo.org" /></div>
+      <div class="field"><label>Password</label><input type="password" id="login-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter') doLogin()" /></div>
+      <span class="role-label">Your Role</span>
+      <div class="role-options">
+        <div class="role-btn selected" onclick="selectRole(this,'director')">🏛 Director</div>
+        <div class="role-btn" onclick="selectRole(this,'manager')">📋 Manager</div>
+        <div class="role-btn" onclick="selectRole(this,'staff')">👤 Staff</div>
+      </div>
+      <button class="login-btn" onclick="doLogin()">Sign In to Dashboard →</button>
+      <hr class="divider">
+      <div class="public-link">Not an employee? <a onclick="go('public')">View public transparency dashboard →</a></div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-left">OpenNGO AI · project made by Gauransh Sharma</div>
+    <div class="footer-links"><a onclick="go('public')">Public Dashboard</a></div>
+  </footer>
+</div>
+
+<!-- ════════════ SCREEN: DASHBOARD ════════════ -->
+<div class="screen" id="screen-dashboard">
+  <header>
+    <div class="logo">OpenNGO<span>AI</span></div>
+    <div style="display:flex;align-items:center;gap:20px;">
+      <div style="text-align:right;">
+        <div class="live-badge" style="justify-content:flex-end;"><div class="live-dot"></div> LIVE</div>
+        <div class="byline">project made by Gauransh Sharma</div>
+      </div>
+      <div class="header-time" id="clock">--:--:--</div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+        <div id="role-badge" class="card-badge badge-green"></div>
+        <button onclick="doLogout()" style="font-family:'DM Mono',monospace;font-size:10px;background:none;border:1px solid var(--border);color:var(--text-muted);padding:2px 10px;border-radius:3px;cursor:pointer;letter-spacing:.06em;">LOGOUT</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="nav-tabs">
+    <div class="tab active" onclick="switchTab('overview',this)"><span class="adot" style="background:#4ade80;"></span>Overview</div>
+    <div class="tab" onclick="switchTab('finance',this)"><span class="adot" style="background:#4ade80;"></span>Finance</div>
+    <div class="tab" onclick="switchTab('procurement',this)"><span class="adot" style="background:#60a5fa;"></span>Procurement</div>
+    <div class="tab" onclick="switchTab('transparency',this)"><span class="adot" style="background:#fbbf24;"></span>Transparency</div>
+  </div>
+
+  <div class="dash-body">
+
+    <!-- OVERVIEW -->
+    <div class="main active" id="tab-overview">
+      <div class="dticker">
+        <div class="ticker-label" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--green);white-space:nowrap;flex-shrink:0;letter-spacing:.08em;">▶ DONATIONS</div>
+        <div class="ticker-scroll"><div class="ticker-inner">₹5,000 — Rahul M. (Mumbai) · 2 min ago &nbsp;·&nbsp; ₹12,500 — Priya K. (Delhi) · 8 min ago &nbsp;·&nbsp; ₹2,000 — Anonymous · 15 min ago &nbsp;·&nbsp; ₹50,000 — Tata Trusts CSR · 1 hr ago &nbsp;·&nbsp; ₹3,500 — Arjun S. (Pune) · 2 hr ago</div></div>
+      </div>
+      <div class="overview-stats">
+        <div class="card"><div class="card-title">Monthly Donations</div><div class="stat-big">₹2.84L</div><div class="stat-label">May 2025</div><div class="stat-change up">↑ 23% vs last month</div></div>
+        <div class="card"><div class="card-title">Funds Allocated</div><div class="stat-big">₹1.97L</div><div class="stat-label">Auto-allocated today</div><div class="stat-change up">₹87,000 in reserve</div></div>
+        <div class="card"><div class="card-title">People Served</div><div class="stat-big">1,240</div><div class="stat-label">This week</div><div class="stat-change up">↑ 340 from Wed drive</div></div>
+        <div class="card"><div class="card-title">Active POs</div><div class="stat-big">7</div><div class="stat-label">Purchase orders</div><div class="stat-change" style="color:var(--blue);">3 in transit</div></div>
+      </div>
+      <div class="card agents-panel">
+        <div class="card-header"><div class="card-title">Agent Status</div><div class="card-badge badge-green">ALL SYSTEMS NOMINAL</div></div>
+        <div class="agent-card finance">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div class="agent-name">💰 Finance Allocation Agent</div><div class="agent-status-line">Last run: 4 min ago · Next: 11 min</div></div><div class="card-badge badge-green">ACTIVE</div></div>
+          <div class="agent-metrics"><div><div class="agent-metric-val">₹12,500</div><div class="agent-metric-label">Last allocation</div></div><div><div class="agent-metric-val">94%</div><div class="agent-metric-label">Efficiency</div></div><div><div class="agent-metric-val">₹87K</div><div class="agent-metric-label">Reserve</div></div></div>
+        </div>
+        <div class="agent-card procurement">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div class="agent-name">📦 Procurement & Logistics Agent</div><div class="agent-status-line">Last run: 12 min ago · 2 orders today</div></div><div class="card-badge badge-blue">ACTIVE</div></div>
+          <div class="agent-metrics"><div><div class="agent-metric-val">7</div><div class="agent-metric-label">Active POs</div></div><div><div class="agent-metric-val">₹34,200</div><div class="agent-metric-label">In-transit</div></div><div><div class="agent-metric-val">12%</div><div class="agent-metric-label">Cost saved</div></div></div>
+        </div>
+        <div class="agent-card transparency">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div class="agent-name">🔍 Transparency & Monitoring Agent</div><div class="agent-status-line">Continuous · 847 audit entries today</div></div><div class="card-badge badge-amber">WATCHING</div></div>
+          <div class="agent-metrics"><div><div class="agent-metric-val">847</div><div class="agent-metric-label">Log entries</div></div><div><div class="agent-metric-val">2</div><div class="agent-metric-label">Risk alerts</div></div><div><div class="agent-metric-val">100%</div><div class="agent-metric-label">Uptime</div></div></div>
+        </div>
+      </div>
+      <div class="card activity-panel">
+        <div class="card-header"><div class="card-title">Live Activity Feed</div><div class="card-badge badge-green">REAL-TIME</div></div>
+        <div id="activity-feed">
+          <div class="activity-item"><div class="activity-icon" style="background:var(--green-muted);color:var(--green);">₹</div><div><div class="activity-text">Donation ₹5,000 from Rahul M. — Auto-allocated: ₹2,500 food, ₹1,500 plants, ₹1,000 reserve</div><div class="activity-time">2 min ago · Finance</div></div></div>
+          <div class="activity-item"><div class="activity-icon" style="background:#1e3a5f;color:var(--blue);">📦</div><div><div class="activity-text">PO-0047 triggered — 200kg rice from AgriMart ₹58/kg. Delivery Wed morning.</div><div class="activity-time">14 min ago · Procurement</div></div></div>
+          <div class="activity-item"><div class="activity-icon" style="background:var(--amber-dim);color:var(--amber);">⚠️</div><div><div class="activity-text">Risk Alert: Sapling stock at 28% — predicted shortfall. PO-0048 auto-triggered.</div><div class="activity-time">31 min ago · Transparency</div></div></div>
+          <div class="activity-item"><div class="activity-icon" style="background:var(--green-muted);color:var(--green);">₹</div><div><div class="activity-text">Salary disbursement: ₹42,000 processed. 3 staff paid.</div><div class="activity-time">1 hr ago · Finance</div></div></div>
+          <div class="activity-item"><div class="activity-icon" style="background:var(--amber-dim);color:var(--amber);">📊</div><div><div class="activity-text">Weekly report generated and sent to Director & Ops Manager.</div><div class="activity-time">3 hr ago · Transparency</div></div></div>
+        </div>
+      </div>
+      <div class="card alerts-panel">
+        <div class="card-header"><div class="card-title">Active Risk Alerts</div><div class="card-badge badge-amber">2 ALERTS</div></div>
+        <div class="alert-bar alert-warn"><span>🌱</span><span style="flex:1;"><strong>Sapling stock low (28%)</strong> — Sunday drive needs ~180. Current: 52. Auto-PO for 150 more. Delivery: Sat evening.</span><button class="alert-action" style="background:var(--amber-dim);color:var(--amber);">View PO</button></div>
+        <div class="alert-bar alert-info"><span>🌧️</span><span style="flex:1;"><strong>Weather:</strong> Rain forecast Wed afternoon. Recommend reducing food prep by ~15%.</span><button class="alert-action" style="background:#1e3a5f;color:var(--blue);">Adjust</button></div>
+      </div>
+    </div>
+
+    <!-- FINANCE -->
+    <div class="main" id="tab-finance">
+      <div class="card fin-full">
+        <div class="card-header"><div class="card-title">Fund Allocation — May 2025</div><div style="display:flex;gap:8px;align-items:center;"><div class="predict-chip">⚡ AI PREDICTED</div><div class="card-badge badge-green">AUTO-ALLOCATED</div></div></div>
+        <div class="alloc-item"><div class="alloc-label">🍚 Daily Food Distribution</div><div class="alloc-bar-wrap"><div class="alloc-bar" style="width:38%;background:var(--green);"></div></div><div class="alloc-amount">₹1,07,920</div><div class="alloc-pct" style="color:var(--green);">38%</div></div>
+        <div class="alloc-item"><div class="alloc-label">🌱 Plant Drives (Wed+Sun)</div><div class="alloc-bar-wrap"><div class="alloc-bar" style="width:22%;background:#34d399;"></div></div><div class="alloc-amount">₹62,480</div><div class="alloc-pct" style="color:#34d399;">22%</div></div>
+        <div class="alloc-item"><div class="alloc-label">👥 Staff Salaries</div><div class="alloc-bar-wrap"><div class="alloc-bar" style="width:18%;background:var(--blue);"></div></div><div class="alloc-amount">₹51,120</div><div class="alloc-pct" style="color:var(--blue);">18%</div></div>
+        <div class="alloc-item"><div class="alloc-label">🏥 Emergency Reserve</div><div class="alloc-bar-wrap"><div class="alloc-bar" style="width:12%;background:var(--amber);"></div></div><div class="alloc-amount">₹34,080</div><div class="alloc-pct" style="color:var(--amber);">12%</div></div>
+        <div class="alloc-item"><div class="alloc-label">🔧 Operations</div><div class="alloc-bar-wrap"><div class="alloc-bar" style="width:7%;background:#a78bfa;"></div></div><div class="alloc-amount">₹19,880</div><div class="alloc-pct" style="color:#a78bfa;">7%</div></div>
+        <div class="alloc-item"><div class="alloc-label">📊 Admin & Tech</div><div class="alloc-bar-wrap"><div class="alloc-bar" style="width:3%;background:var(--text-muted);"></div></div><div class="alloc-amount">₹8,520</div><div class="alloc-pct" style="color:var(--text-muted);">3%</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Recent Donations</div></div>
+        <table class="mini-table"><thead><tr><th>Donor</th><th>Amount</th><th>Time</th><th>Status</th></tr></thead><tbody>
+          <tr><td>Rahul M.</td><td class="mono" style="color:var(--green);">₹5,000</td><td class="mono" style="color:var(--text-muted);">2m</td><td><span class="card-badge badge-green">Alloc'd</span></td></tr>
+          <tr><td>Priya K.</td><td class="mono" style="color:var(--green);">₹12,500</td><td class="mono" style="color:var(--text-muted);">8m</td><td><span class="card-badge badge-green">Alloc'd</span></td></tr>
+          <tr><td>Anon.</td><td class="mono" style="color:var(--green);">₹2,000</td><td class="mono" style="color:var(--text-muted);">15m</td><td><span class="card-badge badge-green">Alloc'd</span></td></tr>
+          <tr><td>Tata Trusts</td><td class="mono" style="color:var(--green);">₹50,000</td><td class="mono" style="color:var(--text-muted);">1h</td><td><span class="card-badge badge-green">Alloc'd</span></td></tr>
+          <tr><td>Arjun S.</td><td class="mono" style="color:var(--green);">₹3,500</td><td class="mono" style="color:var(--text-muted);">2h</td><td><span class="card-badge badge-green">Alloc'd</span></td></tr>
+        </tbody></table>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Predictive Requirements</div><div class="predict-chip">⚡ 7-DAY FORECAST</div></div>
+        <table class="mini-table"><thead><tr><th>Item</th><th>Current</th><th>Need</th><th>Status</th></tr></thead><tbody>
+          <tr><td>Rice (kg)</td><td class="mono">420</td><td class="mono">680</td><td><span class="card-badge badge-amber">Order</span></td></tr>
+          <tr><td>Saplings</td><td class="mono">52</td><td class="mono">180</td><td><span class="card-badge badge-red">Critical</span></td></tr>
+          <tr><td>Cooking Oil</td><td class="mono">85L</td><td class="mono">60L</td><td><span class="card-badge badge-green">OK</span></td></tr>
+          <tr><td>Dal (kg)</td><td class="mono">140</td><td class="mono">200</td><td><span class="card-badge badge-amber">Low</span></td></tr>
+          <tr><td>Pots</td><td class="mono">210</td><td class="mono">180</td><td><span class="card-badge badge-green">OK</span></td></tr>
+        </tbody></table>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Smart Reserve</div></div>
+        <div class="ring-container">
+          <svg width="120" height="120" viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" fill="none" stroke="var(--surface2)" stroke-width="10"/><circle cx="60" cy="60" r="52" fill="none" stroke="var(--green)" stroke-width="10" stroke-dasharray="326.7" stroke-dashoffset="130.7" stroke-linecap="round"/></svg>
+          <div class="ring-center"><div class="ring-val" style="color:var(--green);">60%</div><div class="ring-sub">of target</div></div>
+        </div>
+        <div style="text-align:center;margin-top:4px;"><div style="font-family:'DM Serif Display';font-size:20px;">₹87,000</div><div class="stat-label">Target: ₹1,45,000</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Salary Disbursements</div><div class="card-badge badge-green">PROCESSED</div></div>
+        <table class="mini-table"><thead><tr><th>Staff</th><th>Role</th><th>Amount</th></tr></thead><tbody>
+          <tr><td>Anjali R.</td><td style="color:var(--text-muted);">Ops Manager</td><td class="mono" style="color:var(--green);">₹18,000</td></tr>
+          <tr><td>Vikram S.</td><td style="color:var(--text-muted);">Field Lead</td><td class="mono" style="color:var(--green);">₹14,000</td></tr>
+          <tr><td>Sita P.</td><td style="color:var(--text-muted);">Coordinator</td><td class="mono" style="color:var(--green);">₹10,000</td></tr>
+        </tbody></table>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;"><span style="color:var(--text-muted);font-size:12px;">Total disbursed</span><span class="mono" style="color:var(--green);">₹42,000</span></div>
+      </div>
+    </div>
+
+    <!-- PROCUREMENT -->
+    <div class="main" id="tab-procurement">
+      <div class="card proc-full">
+        <div class="card-header"><div class="card-title">Active Purchase Orders</div><div style="display:flex;gap:8px;"><div class="card-badge badge-blue">7 ACTIVE</div><div class="card-badge badge-green">AUTO-TRIGGERED</div></div></div>
+        <div class="po-item"><div class="po-header"><div><div class="po-id">PO-0048</div><div class="po-vendor">GreenNursery Co. — 150 Saplings</div></div><div class="card-badge badge-amber">IN TRANSIT</div></div><div class="po-detail">₹22,500 · Auto-triggered by risk alert · Expected: Sat 5pm</div><div class="delivery-track"><div class="track-step done"><div class="track-dot">✓</div><div class="track-label">Ordered</div></div><div class="track-step done"><div class="track-dot">✓</div><div class="track-label">Confirmed</div></div><div class="track-step active"><div class="track-dot">→</div><div class="track-label">In Transit</div></div><div class="track-step"><div class="track-dot"></div><div class="track-label">Delivered</div></div></div></div>
+        <div class="po-item"><div class="po-header"><div><div class="po-id">PO-0047</div><div class="po-vendor">AgriMart India — 200kg Rice</div></div><div class="card-badge badge-amber">IN TRANSIT</div></div><div class="po-detail">₹11,600 · Saved ₹1,400 vs market · Expected: Wed 7am</div><div class="delivery-track"><div class="track-step done"><div class="track-dot">✓</div><div class="track-label">Ordered</div></div><div class="track-step done"><div class="track-dot">✓</div><div class="track-label">Confirmed</div></div><div class="track-step active"><div class="track-dot">→</div><div class="track-label">In Transit</div></div><div class="track-step"><div class="track-dot"></div><div class="track-label">Delivered</div></div></div></div>
+        <div class="po-item"><div class="po-header"><div><div class="po-id">PO-0046</div><div class="po-vendor">BulkGrocer — 50kg Dal</div></div><div class="card-badge badge-green">DELIVERED</div></div><div class="po-detail">₹4,750 · Delivered this morning · Quality check: ✓ Passed</div><div class="delivery-track"><div class="track-step done"><div class="track-dot">✓</div><div class="track-label">Ordered</div></div><div class="track-step done"><div class="track-dot">✓</div><div class="track-label">Confirmed</div></div><div class="track-step done"><div class="track-dot">✓</div><div class="track-label">In Transit</div></div><div class="track-step done"><div class="track-dot">✓</div><div class="track-label">Delivered</div></div></div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Vendor Rankings</div><div class="predict-chip">⚡ AI SCORED</div></div>
+        <table class="mini-table"><thead><tr><th>Vendor</th><th>Score</th><th>On-Time</th><th>Price</th></tr></thead><tbody>
+          <tr><td>AgriMart India</td><td class="mono" style="color:var(--green);">9.4</td><td class="mono">97%</td><td class="mono" style="color:var(--green);">Low</td></tr>
+          <tr><td>GreenNursery Co.</td><td class="mono" style="color:var(--green);">8.9</td><td class="mono">94%</td><td class="mono" style="color:var(--amber);">Mid</td></tr>
+          <tr><td>BulkGrocer</td><td class="mono" style="color:var(--green);">8.7</td><td class="mono">91%</td><td class="mono" style="color:var(--green);">Low</td></tr>
+          <tr><td>CitySupplies</td><td class="mono" style="color:var(--amber);">7.2</td><td class="mono">82%</td><td class="mono" style="color:var(--green);">Low</td></tr>
+        </tbody></table>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Cost Savings — This Month</div></div>
+        <div class="alloc-item"><div class="alloc-label" style="font-size:11px;">Rice (bulk deal)</div><div class="alloc-bar-wrap"><div class="alloc-bar" style="width:60%;background:var(--green);"></div></div><div class="alloc-amount" style="color:var(--green);">₹3,200</div></div>
+        <div class="alloc-item"><div class="alloc-label" style="font-size:11px;">Saplings (seasonal)</div><div class="alloc-bar-wrap"><div class="alloc-bar" style="width:35%;background:var(--green);"></div></div><div class="alloc-amount" style="color:var(--green);">₹1,800</div></div>
+        <div class="alloc-item"><div class="alloc-label" style="font-size:11px;">Dal (vendor switch)</div><div class="alloc-bar-wrap"><div class="alloc-bar" style="width:25%;background:var(--green);"></div></div><div class="alloc-amount" style="color:var(--green);">₹1,200</div></div>
+        <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;"><span style="color:var(--text-muted);">Total saved</span><span class="mono" style="color:var(--green);font-size:15px;">₹6,200</span></div>
+      </div>
+    </div>
+
+    <!-- TRANSPARENCY -->
+    <div class="main" id="tab-transparency">
+      <div class="card trans-full">
+        <div class="card-header"><div class="card-title">Immutable Audit Log</div><div style="display:flex;gap:8px;"><div class="card-badge badge-green">OPEN PUBLIC</div><div class="card-badge badge-amber">BLOCKCHAIN-READY</div></div></div>
+        <div class="arow arow-hdr"><div>Timestamp</div><div>Amount</div><div>Description</div><div>Hash</div></div>
+        <div class="arow"><div class="mono" style="font-size:11px;color:var(--text-muted);">17/05 11:42:03</div><div class="mono" style="color:var(--green);">₹5,000</div><div>Donation: Rahul M. → food ₹2,500 · plants ₹1,500 · reserve ₹1,000</div><div class="ahash">a3f8d</div></div>
+        <div class="arow"><div class="mono" style="font-size:11px;color:var(--text-muted);">17/05 11:30:11</div><div class="mono" style="color:var(--blue);">₹22,500</div><div>PO-0048: 150 saplings — GreenNursery (auto-triggered)</div><div class="ahash">b7a1c</div></div>
+        <div class="arow"><div class="mono" style="font-size:11px;color:var(--text-muted);">17/05 11:12:44</div><div class="mono" style="color:var(--green);">₹12,500</div><div>Donation: Priya K. → ₹6,250 food · ₹3,750 plants · ₹2,500 reserve</div><div class="ahash">e9d2f</div></div>
+        <div class="arow"><div class="mono" style="font-size:11px;color:var(--text-muted);">17/05 09:00:00</div><div class="mono" style="color:var(--amber);">₹42,000</div><div>Salary: Anjali R. ₹18K · Vikram S. ₹14K · Sita P. ₹10K</div><div class="ahash">c4e7a</div></div>
+        <div class="arow"><div class="mono" style="font-size:11px;color:var(--text-muted);">17/05 08:30:15</div><div class="mono" style="color:var(--blue);">₹11,600</div><div>PO-0047: 200kg rice — AgriMart India (₹58/kg optimised)</div><div class="ahash">f1b8e</div></div>
+        <div class="arow"><div class="mono" style="font-size:11px;color:var(--text-muted);">16/05 18:00:00</div><div class="mono" style="color:var(--green);">₹50,000</div><div>Donation: Tata Trusts CSR → smart reserve + food allocation</div><div class="ahash">d2c3f</div></div>
+      </div>
+      <div class="card trans-two">
+        <div class="card-header"><div class="card-title">Auto-Generated Weekly Report</div><div style="display:flex;gap:8px;"><div class="predict-chip">⚡ AI WRITTEN</div><div class="card-badge badge-green">SENT TO DIRECTOR</div></div></div>
+        <div class="report-block"><div class="report-title">EXECUTIVE SUMMARY — 12–18 MAY 2025</div><div class="report-text">The foundation received <strong style="color:var(--green);">₹2,84,000</strong> — a 23% increase. All funds auto-allocated within 4 minutes on average. Two plant drives and daily food distribution served <strong style="color:var(--text);">1,240 beneficiaries</strong>. No stockouts recorded.</div></div>
+        <div class="report-block"><div class="report-title" style="display:flex;justify-content:space-between;">RISK FLAGS<span class="card-badge badge-amber">2 ITEMS</span></div><div class="report-text">1. Sapling stock hit 28% — auto-resolved via PO-0048.<br>2. Rain forecast Wed — food prep −15% recommended.</div></div>
+        <div class="report-block"><div class="report-title">PROCUREMENT EFFICIENCY</div><div class="report-text">7 purchase orders. Savings vs market: <strong style="color:var(--green);">₹6,200 (12%)</strong>. All on time. AgriMart top vendor 9.4/10.</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Risk Monitor</div><div class="card-badge badge-amber">LIVE</div></div>
+        <div style="margin-bottom:16px;"><div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px;"><span>Stockout Risk</span><span class="mono" style="color:var(--amber);">MEDIUM</span></div><div style="background:var(--surface2);border-radius:2px;height:6px;"><div style="width:45%;height:100%;background:var(--amber);border-radius:2px;"></div></div></div>
+        <div style="margin-bottom:16px;"><div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px;"><span>Budget Overrun Risk</span><span class="mono" style="color:var(--green);">LOW</span></div><div style="background:var(--surface2);border-radius:2px;height:6px;"><div style="width:18%;height:100%;background:var(--green);border-radius:2px;"></div></div></div>
+        <div style="margin-bottom:16px;"><div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px;"><span>Vendor Reliability</span><span class="mono" style="color:var(--green);">GOOD</span></div><div style="background:var(--surface2);border-radius:2px;height:6px;"><div style="width:88%;height:100%;background:var(--green);border-radius:2px;"></div></div></div>
+        <div><div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px;"><span>Compliance Score</span><span class="mono" style="color:var(--green);">100%</span></div><div style="background:var(--surface2);border-radius:2px;height:6px;"><div style="width:100%;height:100%;background:var(--green);border-radius:2px;"></div></div></div>
+        <div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--border);"><div class="card-title" style="margin-bottom:10px;">Next Events</div><div style="font-size:12px;line-height:2;color:var(--text-muted);">📅 Wed 21 May — Plant Drive (180 saplings)<br>🍚 Daily — Food distribution 7am–9am<br>📅 Sun 25 May — Plant Drive (bulk)<br>📊 Mon 19 May — Weekly report auto-send</div></div>
+      </div>
+    </div>
+
+  </div><!-- /dash-body -->
+
+  <!-- AI CHAT -->
+  <button class="ai-chat-btn" onclick="toggleChat()">🤖</button>
+  <div class="ai-panel" id="ai-panel">
+    <div class="ai-panel-header">
+      <div class="ai-panel-title"><div class="live-dot" style="background:var(--green);"></div> OpenNGO Assistant</div>
+      <button onclick="toggleChat()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;">✕</button>
+    </div>
+    <div class="ai-messages" id="ai-messages">
+      <div class="msg ai">Hi! Ask me anything about donations, inventory, procurement, or upcoming events.</div>
+    </div>
+    <div class="ai-input-row">
+      <input class="ai-input" id="ai-input" placeholder="Ask about inventory, donations..." onkeydown="if(event.key==='Enter') sendMsg()">
+      <button class="ai-send" onclick="sendMsg()">↑</button>
+    </div>
+  </div>
+
+</div><!-- /screen-dashboard -->
+
+<script>
+  // ── NAVIGATION
+  function go(screen) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-' + screen).classList.add('active');
+    window.scrollTo(0, 0);
+  }
+
+  // ── LOGIN
+  let selectedRole = 'director';
+
+  function selectRole(el, role) {
+    document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedRole = role;
+  }
+
+  const users = {
+    'director@ngo.org': { pass: 'admin123', role: 'director' },
+    'manager@ngo.org':  { pass: 'ops2025',  role: 'manager'  },
+    'staff@ngo.org':    { pass: 'staff2025', role: 'staff'   },
+  };
+
+  function doLogin() {
+    const email = document.getElementById('login-email').value.trim().toLowerCase();
+    const pass  = document.getElementById('login-pass').value;
+    const err   = document.getElementById('login-error');
+    const user  = users[email];
+
+    if (user && user.pass === pass && user.role === selectedRole) {
+      err.style.display = 'none';
+      const labels = { director: '🏛 DIRECTOR', manager: '📋 MANAGER', staff: '👤 STAFF' };
+      document.getElementById('role-badge').textContent = labels[user.role];
+      go('dashboard');
+      initDashboard();
+    } else {
+      err.style.display = 'block';
+      document.getElementById('login-pass').value = '';
+    }
+  }
+
+  function doLogout() {
+    document.getElementById('login-email').value = '';
+    document.getElementById('login-pass').value = '';
+    go('login');
+  }
+
+  // ── DASHBOARD INIT
+  let dashInit = false;
+  function initDashboard() {
+    if (dashInit) return;
+    dashInit = true;
+    startClock();
+    startFeed();
+  }
+
+  // ── TABS
+  function switchTab(name, el) {
+    document.querySelectorAll('.main').forEach(m => m.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    el.classList.add('active');
+  }
+
+  // ── CLOCK
+  function startClock() {
+    const tick = () => {
+      const el = document.getElementById('clock');
+      if (el) el.textContent = new Date().toLocaleTimeString('en-IN', { hour12: false });
+    };
+    tick();
+    setInterval(tick, 1000);
+  }
+
+  // ── LIVE FEED
+  function startFeed() {
+    const activities = [
+      { icon: '₹', bg: 'var(--green-muted)', color: 'var(--green)', text: 'Donation ₹3,000 received — Auto-allocated: ₹1,500 food, ₹900 plants, ₹600 reserve', agent: 'Finance' },
+      { icon: '📦', bg: '#1e3a5f', color: 'var(--blue)', text: 'Inventory check complete — All critical items above 30% threshold', agent: 'Procurement' },
+      { icon: '📊', bg: 'var(--amber-dim)', color: 'var(--amber)', text: 'Daily report generated — 847 audit entries, 0 anomalies detected', agent: 'Transparency' },
+      { icon: '✓', bg: '#1e3a5f', color: 'var(--blue)', text: 'Vendor confirmation from AgriMart — PO-0047 en route, ETA Wed 7am', agent: 'Procurement' },
+      { icon: '⚡', bg: 'var(--green-muted)', color: 'var(--green)', text: 'Predictive model updated — Sun drive forecast: 420 people (fair weather)', agent: 'Finance' },
+    ];
+    let idx = 0;
+    setInterval(() => {
+      const feed = document.getElementById('activity-feed');
+      if (!feed) return;
+      const a = activities[idx++ % activities.length];
+      const div = document.createElement('div');
+      div.className = 'activity-item';
+      div.style.cssText = 'opacity:0;transition:opacity .5s;';
+      div.innerHTML = `<div class="activity-icon" style="background:${a.bg};color:${a.color};">${a.icon}</div><div><div class="activity-text">${a.text}</div><div class="activity-time">just now · ${a.agent}</div></div>`;
+      feed.insertBefore(div, feed.firstChild);
+      setTimeout(() => div.style.opacity = '1', 50);
+      while (feed.children.length > 6) feed.removeChild(feed.lastChild);
+    }, 8000);
+  }
+
+  // ── AI CHAT
+  function toggleChat() {
+    const p = document.getElementById('ai-panel');
+    p.classList.toggle('open');
+    if (p.classList.contains('open')) setTimeout(() => document.getElementById('ai-input').focus(), 100);
+  }
+
+  const fallbacks = [
+    "Finance Agent has allocated ₹1.97L today — 38% food, 22% plants, 18% salaries, 12% reserve.",
+    "Sapling stock is at 28% — critical. PO-0048 auto-triggered for 150 saplings, arriving Saturday.",
+    "This week's donations: ₹2,84,000 — up 23%. All funds auto-allocated within 4 minutes on average.",
+    "847 audit entries today, zero anomalies. Weekly report sent to Director this morning.",
+    "Rain forecast Wednesday — recommend reducing food prep by ~15%.",
+    "Smart reserve: ₹87,000 — 60% of the ₹1,45,000 target.",
+    "Top vendor: AgriMart India (9.4/10, 97% on-time). Rice at ₹58/kg vs market ₹65/kg.",
+  ];
+
+  async function sendMsg() {
+    const input = document.getElementById('ai-input');
+    const q = input.value.trim();
+    if (!q) return;
+    input.value = '';
+    const msgs = document.getElementById('ai-messages');
+
+    const uDiv = document.createElement('div');
+    uDiv.className = 'msg user';
+    uDiv.textContent = q;
+    msgs.appendChild(uDiv);
+
+    const tDiv = document.createElement('div');
+    tDiv.className = 'msg ai typing';
+    tDiv.textContent = 'Analysing NGO data...';
+    msgs.appendChild(tDiv);
+    msgs.scrollTop = msgs.scrollHeight;
+
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514', max_tokens: 1000,
+          system: `You are OpenNGO AI assistant. NGO data: Monthly donations ₹2,84,000 (+23%). Allocated ₹1,97,000, reserve ₹87,000. Breakdown: 38% food, 22% plants, 18% salaries, 12% reserve. Inventory: rice 420kg (need 680), saplings 52 (need 180, CRITICAL, PO in transit), dal 140kg (need 200), oil 85L OK. 7 active POs. 1,240 beneficiaries this week. Savings: ₹6,200 (12%). Staff paid: ₹42,000. Alerts: saplings low (resolved), rain Wed (−15% food). Answer in 2-4 sentences, data-driven, concise.`,
+          messages: [{ role: 'user', content: q }]
+        })
+      });
+      const data = await resp.json();
+      tDiv.remove();
+      const aDiv = document.createElement('div');
+      aDiv.className = 'msg ai';
+      aDiv.textContent = data.content?.[0]?.text || fallbacks[Math.floor(Math.random() * fallbacks.length)];
+      msgs.appendChild(aDiv);
+    } catch {
+      tDiv.remove();
+      const aDiv = document.createElement('div');
+      aDiv.className = 'msg ai';
+      aDiv.textContent = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+      msgs.appendChild(aDiv);
+    }
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+</script>
+</body>
+</html>
