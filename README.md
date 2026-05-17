@@ -1,8 +1,8 @@
-# OpenNGO-AI
 # OpenNGO AI 🌱
 ### Open-Source Multi-Agent Platform for Predictive & Transparent Humanitarian Supply Chain Management
 
 **Built by Gauransh Sharma** · Student Project · MIT License · Free for all NGOs forever
+
 ---
 
 ## What Is This?
@@ -18,6 +18,20 @@ The platform has **3 AI agents** working together:
 | 💰 Finance Allocation Agent | Detects donations, auto-allocates funds, manages reserves, pays salaries |
 | 📦 Procurement & Logistics Agent | Triggers purchase orders, tracks deliveries, ranks vendors by performance |
 | 🔍 Transparency & Monitoring Agent | Logs every transaction publicly, generates weekly reports, fires risk alerts |
+
+---
+
+## Is The AI Real?
+
+**Honest answer — it is mixed.**
+
+✅ **Actually real AI:** The 🤖 chat button in the bottom right calls the real Claude API. When you ask it a question, a real AI is answering.
+
+❌ **Simulated in this prototype:** The 3 agents (Finance, Procurement, Transparency) are currently UI simulations. The numbers, alerts, and activity feed are hardcoded demo data. They look like AI agents but no logic is running behind them.
+
+This is a **UI prototype** showing what a real AI-powered NGO platform would look like. The README below explains two things:
+1. How to connect real data (database, donations, inventory, weather)
+2. How to build the 3 agents as real autonomous AI that runs 24/7
 
 ---
 
@@ -83,7 +97,7 @@ That's it. Free forever. No server needed.
 
 ---
 
-## What Is Fake Right Now (And How to Make It Real)
+## Part 1 — Connect Real Data
 
 This is a prototype. Everything below is currently hardcoded demo data. Here is exactly what you need to replace, and how to do it.
 
@@ -182,7 +196,7 @@ Tip: A Google Form filled by field staff after each drive, connected to Supabase
 
 ---
 
-### 4. 📊 Fund Allocation (Finance Agent)
+### 4. 📊 Fund Allocation (Finance Agent data)
 
 **Currently:** The 38% food, 22% plants etc. are hardcoded.
 
@@ -204,24 +218,9 @@ create table transactions (
 );
 ```
 
-```javascript
-async function allocateDonation(donationId, amount) {
-  const { data: rules } = await supabase.from('allocation_rules').select('*')
-  for (const rule of rules) {
-    const allocated = (rule.target_percentage / 100) * amount
-    await supabase.from('transactions').insert({
-      category: rule.category,
-      amount: allocated,
-      description: `Auto-allocated from donation ${donationId}`,
-      donation_id: donationId
-    })
-  }
-}
-```
-
 ---
 
-### 5. 🛒 Purchase Orders (Procurement Agent)
+### 5. 🛒 Purchase Orders (Procurement Agent data)
 
 **Currently:** PO-0047, PO-0048 etc. are hardcoded with fake vendors and statuses.
 
@@ -253,32 +252,6 @@ create table purchase_orders (
 );
 ```
 
-```javascript
-async function checkAndTriggerOrders() {
-  const { data: lowStock } = await supabase
-    .from('inventory').select('*')
-    .lt('current_quantity', 'reorder_threshold * 0.3')
-
-  for (const item of lowStock) {
-    const { data: vendor } = await supabase
-      .from('vendors').select('*')
-      .eq('category', item.category)
-      .order('score', { ascending: false })
-      .limit(1).single()
-
-    await supabase.from('purchase_orders').insert({
-      po_number: `PO-${Date.now()}`,
-      vendor_id: vendor.id,
-      item: item.item_name,
-      quantity: item.reorder_threshold * 2,
-      status: 'ordered'
-    })
-  }
-}
-```
-
-Run this daily via a Supabase Edge Function (free, serverless).
-
 ---
 
 ### 6. 🌤️ Weather Forecast
@@ -308,63 +281,7 @@ async function getWeatherForecast(latitude, longitude) {
 
 ---
 
-### 7. 🔮 Predictive Requirements (AI Forecasting)
-
-**Currently:** "Need 680kg rice in 7 days" is a hardcoded guess.
-
-**Simple version** — average of last 30 days usage:
-
-```javascript
-async function predictRequirements(itemName, daysAhead = 7) {
-  const thirtyDaysAgo = new Date()
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-
-  const { data } = await supabase
-    .from('inventory_usage_log').select('quantity_used, date')
-    .eq('item_name', itemName).gte('date', thirtyDaysAgo.toISOString())
-
-  const totalUsed = data.reduce((sum, d) => sum + d.quantity_used, 0)
-  const avgDailyUsage = totalUsed / 30
-  const predictedNeed = avgDailyUsage * daysAhead
-
-  const { data: events } = await supabase
-    .from('events').select('*')
-    .gte('date', new Date().toISOString())
-    .lte('date', new Date(Date.now() + daysAhead * 86400000).toISOString())
-
-  const eventMultiplier = events.length > 0 ? 1.3 : 1.0
-  return Math.ceil(predictedNeed * eventMultiplier)
-}
-```
-
-**Advanced version** — use Claude API to forecast from historical data + events + weather:
-
-```javascript
-async function aiDrivenForecast(historicalData, upcomingEvents, weatherForecast) {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 500,
-      messages: [{
-        role: 'user',
-        content: `Based on historical usage: ${JSON.stringify(historicalData)},
-                  upcoming events: ${JSON.stringify(upcomingEvents)},
-                  weather: ${JSON.stringify(weatherForecast)},
-                  predict how much rice, dal, and saplings this NGO needs in the next 7 days.
-                  Return JSON only: { rice_kg: number, dal_kg: number, saplings: number }`
-      }]
-    })
-  })
-  const data = await response.json()
-  return JSON.parse(data.content[0].text)
-}
-```
-
----
-
-### 8. 📋 Audit Trail (Real Immutable Log)
+### 7. 📋 Audit Trail
 
 **Currently:** 6 hardcoded rows with fake hashes.
 
@@ -403,15 +320,13 @@ async function addAuditEntry(eventType, amount, description, referenceId) {
 
 ---
 
-### 9. 📧 Automated Reports to Director
+### 8. 📧 Automated Reports to Director
 
 **Currently:** "Sent to Director" is just a label. Nothing actually sends.
 
 **How to make it real:** Use **EmailJS** (free, no backend needed):
 
 ```javascript
-// Add to HTML: <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-
 async function sendWeeklyReport(directorEmail, reportData) {
   await emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', {
     to_email: directorEmail,
@@ -425,16 +340,437 @@ async function sendWeeklyReport(directorEmail, reportData) {
 }
 ```
 
-Schedule this every Monday using a Supabase Edge Function with a cron trigger.
+---
+
+## Part 2 — Build the Real AI Agents
+
+This is the big step. Right now the 3 agents are UI labels. Here is how you turn each one into a real autonomous AI that runs 24/7 without anyone touching it.
+
+Each agent is built as a **Supabase Edge Function** — a free serverless function that runs on a schedule (like a cron job) and uses the **Claude API** to make real decisions.
 
 ---
 
-### 10. 🤖 AI Chat Assistant (Already Real!)
+### How Supabase Edge Functions Work
+Your database (Supabase)
+↓
+Edge Function runs on a schedule (e.g. every 15 minutes)
+↓
+It reads your real data (donations, inventory, events)
+↓
+It calls Claude API with that data and asks what to do
+↓
+Claude thinks and responds with a decision
+↓
+The function writes the result back to your database
+↓
+Your dashboard shows the real result live
 
-The 🤖 chat button already calls the real Claude API and works in the Claude.ai preview. For GitHub Pages:
+No human needed. It runs automatically, forever, for free.
 
-- **Option A (Simple):** Remove the API fetch and keep only the 7 fallback responses. Fine for demos.
-- **Option B (Proper):** Create a Supabase Edge Function as a proxy that holds your API key securely. Never put an API key directly in public HTML.
+---
+
+### 💰 Real Finance Allocation Agent
+
+**What it does when real:**
+- Watches for new donations every 15 minutes
+- Reads your allocation rules from the database
+- Calls Claude API to decide the smartest split based on upcoming events, current stock levels, and reserve status
+- Records every allocation to the transactions table
+- Logs to audit trail
+- Updates the dashboard automatically
+
+**Supabase Edge Function code:**
+
+```javascript
+// supabase/functions/finance-agent/index.ts
+// Deploy with: supabase functions deploy finance-agent
+// Schedule with: supabase functions schedule finance-agent --cron "*/15 * * * *"
+
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL'),
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+)
+
+Deno.serve(async () => {
+
+  // Step 1 — Find unallocated donations
+  const { data: newDonations } = await supabase
+    .from('donations')
+    .select('*')
+    .eq('allocated', false)
+
+  if (!newDonations || newDonations.length === 0) {
+    return new Response('No new donations', { status: 200 })
+  }
+
+  // Step 2 — Get current context
+  const { data: inventory } = await supabase.from('inventory').select('*')
+  const { data: upcomingEvents } = await supabase
+    .from('events').select('*').gte('date', new Date().toISOString())
+  const { data: rules } = await supabase.from('allocation_rules').select('*')
+  const { data: reserve } = await supabase
+    .from('transactions').select('amount').eq('category', 'reserve')
+
+  const totalReserve = reserve.reduce((sum, r) => sum + r.amount, 0)
+
+  // Step 3 — Ask Claude how to allocate
+  for (const donation of newDonations) {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': Deno.env.get('CLAUDE_API_KEY'),
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 500,
+        messages: [{
+          role: 'user',
+          content: `You are a finance agent for an NGO. A donation of ₹${donation.amount} just arrived.
+          
+          Current inventory levels: ${JSON.stringify(inventory)}
+          Upcoming events this week: ${JSON.stringify(upcomingEvents)}
+          Default allocation rules: ${JSON.stringify(rules)}
+          Current emergency reserve: ₹${totalReserve}
+          Target reserve: ₹145000
+          
+          Decide the smartest allocation for this donation.
+          If reserve is very low, allocate more to reserve.
+          If a plant drive is coming up, allocate more to plants.
+          If food stock is critically low, prioritise food.
+          
+          Return JSON only, no explanation:
+          {
+            "food": <amount in rupees>,
+            "plants": <amount in rupees>,
+            "salaries": <amount in rupees>,
+            "reserve": <amount in rupees>,
+            "operations": <amount in rupees>,
+            "reasoning": "<one sentence>"
+          }`
+        }]
+      })
+    })
+
+    const aiResponse = await response.json()
+    const allocation = JSON.parse(aiResponse.content[0].text)
+
+    // Step 4 — Write allocations to database
+    for (const [category, amount] of Object.entries(allocation)) {
+      if (category === 'reasoning') continue
+      await supabase.from('transactions').insert({
+        category,
+        amount,
+        description: `AI allocated from donation ${donation.id} — ${allocation.reasoning}`,
+        donation_id: donation.id
+      })
+    }
+
+    // Step 5 — Mark donation as allocated
+    await supabase.from('donations')
+      .update({ allocated: true }).eq('id', donation.id)
+
+    // Step 6 — Write to audit log
+    await addAuditEntry('allocation', donation.amount,
+      `Donation ₹${donation.amount} allocated by Finance Agent — ${allocation.reasoning}`,
+      donation.id)
+  }
+
+  return new Response('Finance Agent ran successfully', { status: 200 })
+})
+```
+
+---
+
+### 📦 Real Procurement & Logistics Agent
+
+**What it does when real:**
+- Runs every morning at 7am
+- Checks all inventory levels against thresholds
+- Looks at upcoming events to predict extra demand
+- Calls Claude API to decide what to order, how much, and from which vendor
+- Auto-creates purchase orders in the database
+- Sends WhatsApp or email notification to the vendor
+- Logs everything to audit trail
+
+**Supabase Edge Function code:**
+
+```javascript
+// supabase/functions/procurement-agent/index.ts
+// Schedule: runs every day at 7am
+// supabase functions schedule procurement-agent --cron "0 7 * * *"
+
+Deno.serve(async () => {
+
+  // Step 1 — Check what is running low
+  const { data: inventory } = await supabase.from('inventory').select('*')
+  const lowStock = inventory.filter(
+    item => item.current_quantity < item.reorder_threshold * 0.5
+  )
+
+  if (lowStock.length === 0) {
+    return new Response('All stock levels OK', { status: 200 })
+  }
+
+  // Step 2 — Get upcoming events and vendors
+  const { data: events } = await supabase
+    .from('events').select('*').gte('date', new Date().toISOString())
+    .lte('date', new Date(Date.now() + 7 * 86400000).toISOString())
+
+  const { data: vendors } = await supabase.from('vendors').select('*')
+
+  // Step 3 — Ask Claude what to order
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': Deno.env.get('CLAUDE_API_KEY'),
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 800,
+      messages: [{
+        role: 'user',
+        content: `You are a procurement agent for an NGO.
+
+        Low stock items: ${JSON.stringify(lowStock)}
+        Upcoming events this week: ${JSON.stringify(events)}
+        Available vendors: ${JSON.stringify(vendors)}
+
+        For each low stock item:
+        1. Decide how much to order (enough for 2 weeks + event buffer)
+        2. Pick the best vendor (highest score, lowest price, good on-time rate)
+        3. Calculate total cost
+
+        Return JSON only:
+        [
+          {
+            "item": "rice",
+            "quantity": 300,
+            "unit": "kg",
+            "vendor_id": "<uuid>",
+            "vendor_name": "AgriMart India",
+            "unit_price": 58,
+            "total_amount": 17400,
+            "reason": "Stock at 30%, plant drive Sunday needs buffer"
+          }
+        ]`
+      }]
+    })
+  })
+
+  const aiResponse = await response.json()
+  const orders = JSON.parse(aiResponse.content[0].text)
+
+  // Step 4 — Create purchase orders in database
+  for (const order of orders) {
+    const poNumber = `PO-${Date.now()}-${Math.random().toString(36).slice(2,6).toUpperCase()}`
+
+    await supabase.from('purchase_orders').insert({
+      po_number: poNumber,
+      vendor_id: order.vendor_id,
+      item: order.item,
+      quantity: order.quantity,
+      unit: order.unit,
+      unit_price: order.unit_price,
+      total_amount: order.total_amount,
+      status: 'ordered',
+      expected_delivery: new Date(Date.now() + 2 * 86400000).toISOString()
+    })
+
+    // Log to audit trail
+    await addAuditEntry('purchase_order', order.total_amount,
+      `PO ${poNumber}: ${order.quantity}${order.unit} ${order.item} from ${order.vendor_name} — ${order.reason}`,
+      null)
+  }
+
+  return new Response(`Procurement Agent created ${orders.length} orders`, { status: 200 })
+})
+```
+
+---
+
+### 🔍 Real Transparency & Monitoring Agent
+
+**What it does when real:**
+- Runs continuously every hour
+- Scans all transactions for anomalies (unusual amounts, duplicate entries, budget overruns)
+- Calls Claude API to analyse patterns and write the weekly report in plain English
+- Fires risk alerts if stock, budget, or vendor performance drops below safe levels
+- Sends the weekly report to Director and Operations Manager every Monday
+- Everything is logged publicly to the audit trail automatically
+
+**Supabase Edge Function code:**
+
+```javascript
+// supabase/functions/transparency-agent/index.ts
+// Schedule: runs every hour
+// supabase functions schedule transparency-agent --cron "0 * * * *"
+
+Deno.serve(async () => {
+
+  // Step 1 — Pull all recent data
+  const oneWeekAgo = new Date(Date.now() - 7 * 86400000).toISOString()
+
+  const { data: recentTransactions } = await supabase
+    .from('transactions').select('*').gte('created_at', oneWeekAgo)
+
+  const { data: inventory } = await supabase.from('inventory').select('*')
+  const { data: openPOs } = await supabase
+    .from('purchase_orders').select('*').neq('status', 'delivered')
+  const { data: donations } = await supabase
+    .from('donations').select('*').gte('created_at', oneWeekAgo)
+
+  // Step 2 — Ask Claude to analyse for risks and anomalies
+  const riskResponse = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': Deno.env.get('CLAUDE_API_KEY'),
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{
+        role: 'user',
+        content: `You are a transparency and risk monitoring agent for an NGO.
+
+        Recent transactions (7 days): ${JSON.stringify(recentTransactions)}
+        Current inventory: ${JSON.stringify(inventory)}
+        Open purchase orders: ${JSON.stringify(openPOs)}
+        Recent donations: ${JSON.stringify(donations)}
+
+        Analyse this data and:
+        1. Identify any risk alerts (stock critically low, budget overrun, anomalous transactions, delayed POs)
+        2. Check if any inventory item will run out before the next scheduled event
+        3. Flag any transaction that looks unusual in amount or timing
+
+        Return JSON only:
+        {
+          "risk_alerts": [
+            {
+              "severity": "critical|warning|info",
+              "title": "Short title",
+              "message": "Full description of the risk and recommended action"
+            }
+          ],
+          "anomalies": [
+            {
+              "transaction_id": "<id>",
+              "reason": "Why this looks unusual"
+            }
+          ],
+          "overall_health": "good|warning|critical"
+        }`
+      }]
+    })
+  })
+
+  const riskData = await riskResponse.json()
+  const analysis = JSON.parse(riskData.content[0].text)
+
+  // Step 3 — Save risk alerts to database
+  for (const alert of analysis.risk_alerts) {
+    await supabase.from('risk_alerts').insert({
+      severity: alert.severity,
+      title: alert.title,
+      message: alert.message,
+      resolved: false,
+      created_at: new Date().toISOString()
+    })
+  }
+
+  // Step 4 — Generate weekly report every Monday
+  const today = new Date()
+  if (today.getDay() === 1) {  // Monday
+    const reportResponse = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': Deno.env.get('CLAUDE_API_KEY'),
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        messages: [{
+          role: 'user',
+          content: `Write a clear, professional weekly report for an NGO director.
+
+          Data for this week:
+          - Donations: ${JSON.stringify(donations)}
+          - Transactions: ${JSON.stringify(recentTransactions)}
+          - Inventory status: ${JSON.stringify(inventory)}
+          - Purchase orders: ${JSON.stringify(openPOs)}
+          - Risk alerts this week: ${JSON.stringify(analysis.risk_alerts)}
+
+          Write in plain English. Include:
+          1. Executive summary (3 sentences)
+          2. Total donations received and how they were allocated
+          3. Procurement highlights and cost savings
+          4. Risk flags and how they were resolved
+          5. Recommendations for next week
+
+          Be specific with rupee amounts. Be honest about any problems.`
+        }]
+      })
+    })
+
+    const reportData = await reportResponse.json()
+    const reportText = reportData.content[0].text
+
+    // Save report to database
+    await supabase.from('weekly_reports').insert({
+      week_start: oneWeekAgo,
+      week_end: new Date().toISOString(),
+      content: reportText,
+      created_at: new Date().toISOString()
+    })
+
+    // Send email to Director (using EmailJS or Resend)
+    await sendWeeklyReportEmail('director@yourngo.org', reportText)
+  }
+
+  return new Response(`Transparency Agent: ${analysis.risk_alerts.length} alerts, health: ${analysis.overall_health}`, { status: 200 })
+})
+```
+
+---
+
+### How to Deploy the Agents
+
+Once you have Supabase set up:
+
+```bash
+# Install Supabase CLI
+npm install -g supabase
+
+# Login
+supabase login
+
+# Link to your project
+supabase link --project-ref YOUR_PROJECT_REF
+
+# Deploy all 3 agents
+supabase functions deploy finance-agent
+supabase functions deploy procurement-agent
+supabase functions deploy transparency-agent
+
+# Set your Claude API key as a secret
+supabase secrets set CLAUDE_API_KEY=your_claude_api_key_here
+
+# Schedule them
+supabase functions schedule finance-agent --cron "*/15 * * * *"
+supabase functions schedule procurement-agent --cron "0 7 * * *"
+supabase functions schedule transparency-agent --cron "0 * * * *"
+```
+
+That's it. All 3 agents are now running 24/7 for free, making real AI decisions on real data.
 
 ---
 
@@ -446,13 +782,13 @@ The 🤖 chat button already calls the real Claude API and works in the Claude.a
 | Database | Supabase (Postgres) | Free up to 500MB |
 | Auth | Supabase Auth | Free |
 | Hosting | GitHub Pages or Vercel | Free |
+| AI Agents | Supabase Edge Functions | Free |
 | Payment webhook | Razorpay | Free to integrate |
 | Weather API | Open-Meteo | Free forever |
 | Email reports | EmailJS or Resend | Free tier |
-| AI assistant | Claude API | ~$0.003 per message |
-| Cron jobs | Supabase Edge Functions | Free |
+| AI decisions | Claude API | ~$0.003 per decision |
 
-**Estimated monthly cost for a small NGO: ₹0 to ₹500** depending on AI chat volume.
+**Estimated monthly cost for a small NGO: ₹0 to ₹800** depending on how often the agents run and how many donations come in.
 
 ---
 
@@ -464,8 +800,10 @@ The 🤖 chat button already calls the real Claude API and works in the Claude.a
 4. Change the demo credentials to your real staff emails
 5. Update event names, vendor names, and inventory items to match your operations
 6. Deploy to GitHub Pages
-7. Connect your payment gateway webhook
-8. Start logging real data
+7. Set up Supabase and create all the tables listed above
+8. Deploy the 3 Edge Functions and set your schedules
+9. Connect your Razorpay webhook
+10. Start logging real data — the agents take over from there
 
 ---
 
