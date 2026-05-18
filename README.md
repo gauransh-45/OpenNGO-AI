@@ -73,7 +73,7 @@ The entire platform — public page, employee login, and full dashboard — live
 
 No install needed. Just:
 
-1. Download `openngo-ai.html`
+1. Download `OpenNGO-AI_by Gauransh.Sharma.html`
 2. Double-click it to open in any browser
 3. You're on the public page
 4. Click **Employee Login →** in the top right
